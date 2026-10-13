@@ -1,0 +1,648 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#172554">
+<title>Photo Number Painter</title>
+<style>
+:root {
+  --blue: #315bea;
+  --navy: #172554;
+  --bg: #f1f5f9;
+  --border: #dbe3ef;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Arial, sans-serif;
+  background: var(--bg);
+  color: #172033;
+}
+header {
+  padding: 22px 16px;
+  color: white;
+  background: linear-gradient(120deg, #172554, #315bea);
+}
+header h1 { margin: 0; font-size: 25px; }
+header p { margin: 6px 0 0; color: #dbeafe; }
+main {
+  width: min(1200px, 100%);
+  margin: auto;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+}
+.panel {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 5px 20px #0f172a08;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+button, select, .upload {
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: white;
+  color: #172033;
+  font: inherit;
+  cursor: pointer;
+}
+.primary, .upload.primary {
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+  font-weight: 650;
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+input[type=file] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+}
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #e2e8f0;
+}
+#board {
+  display: none;
+  max-width: 100%;
+  max-height: 65vh;
+  height: auto;
+  touch-action: manipulation;
+  cursor: crosshair;
+}
+.empty {
+  padding: 35px 20px;
+  max-width: 440px;
+  text-align: center;
+  color: #64748b;
+}
+.empty strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #172033;
+  font-size: 19px;
+}
+.small { font-size: 13px; color: #64748b; }
+.stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 12px 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.progress {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #e2e8f0;
+}
+#progressFill {
+  width: 0;
+  height: 100%;
+  background: #22c55e;
+  transition: width .15s;
+}
+.palette {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 7px;
+}
+.swatch {
+  min-width: 0;
+  padding: 5px 3px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: #f8fafc;
+  font-size: 12px;
+}
+.swatch.active {
+  border-color: #315bea;
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+.swatch.done { opacity: .45; }
+.chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 28px;
+  margin-bottom: 4px;
+  border: 1px solid #0002;
+  border-radius: 6px;
+  font-weight: 800;
+}
+.help { color: #64748b; font-size: 13px; line-height: 1.6; }
+#finish {
+  padding: 12px;
+  margin-top: 12px;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 700;
+}
+hr { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
+footer {
+  max-width: 1200px;
+  margin: auto;
+  padding: 0 16px 25px;
+  color: #64748b;
+  font-size: 12px;
+}
+@media(max-width: 800px) {
+  main { grid-template-columns: 1fr; padding: 10px; }
+  .stage { min-height: 240px; }
+  #board { max-height: 58vh; }
+  .panel { padding: 12px; }
+  header h1 { font-size: 22px; }
+}
+@media(max-width: 430px) {
+  .palette { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .toolbar button, .upload { flex: 1; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎨 Photo Number Painter</h1>
+  <p>Make your own photos into color-by-number puzzles!</p>
+</header>
+
+<main>
+<section class="panel">
+  <div class="toolbar">
+    <label class="upload primary" for="upload">Choose a photo</label>
+    <input id="upload" type="file" accept="image/*">
+    <button id="cameraBtn">Use camera</button>
+    <input id="camera" type="file" accept="image/*" capture="environment">
+    <button id="make" disabled>Make puzzle</button>
+  </div>
+
+  <div class="toolbar">
+    <label class="small" for="detail">Detail</label>
+    <select id="detail">
+      <option value="30">Easy</option>
+      <option value="45" selected>Normal</option>
+      <option value="65">Detailed</option>
+      <option value="85">Expert</option>
+    </select>
+    <label class="small" for="colors">Colors</label>
+    <select id="colors">
+      <option value="6">6</option>
+      <option value="10" selected>10</option>
+      <option value="14">14</option>
+      <option value="18">18</option>
+      <option value="24">24</option>
+    </select>
+  </div>
+
+  <div class="stage">
+    <div class="empty" id="empty">
+      <strong>Your photo becomes your puzzle</strong>
+      Choose a picture from your device. Select a numbered color,
+      then tap matching squares to bring your picture to life.
+    </div>
+    <canvas id="board" width="540" height="540"
+      aria-label="Color-by-number puzzle"></canvas>
+  </div>
+
+  <div class="stats">
+    <span id="status">Choose a photo to start</span>
+    <span id="percent">0%</span>
+  </div>
+  <div class="progress"><div id="progressFill"></div></div>
+
+  <div class="toolbar" style="margin-top:12px">
+    <button id="numbers" disabled>Hide numbers</button>
+    <button id="hint" disabled>Hint</button>
+    <button id="reset" disabled>Restart</button>
+    <button id="save" disabled>Save PNG</button>
+  </div>
+
+  <p class="help">
+    Your photo is processed on your device. It is not sent to a game
+    server. Choose a larger detail setting for more squares.
+  </p>
+</section>
+
+<aside class="panel">
+  <h2 style="font-size:19px;margin-top:2px">Color palette</h2>
+  <p class="help" id="paletteHelp">
+    Upload a photo to generate your numbered color palette.
+  </p>
+  <div class="palette" id="palette"></div>
+
+  <hr>
+  <h3 style="font-size:16px">How to play</h3>
+  <ol class="help">
+    <li>Choose your photo.</li>
+    <li>Pick detail and number of colors.</li>
+    <li>Select a color from the palette.</li>
+    <li>Tap squares with the matching number.</li>
+    <li>Complete your picture and save it!</li>
+  </ol>
+
+  <div id="finish" hidden>
+    🎉 Congratulations! You finished your picture!
+  </div>
+</aside>
+</main>
+
+<footer>
+  Photo Number Painter · Designed for desktop, phones and tablets.
+  Supports image formats your browser can decode, such as JPEG, PNG
+  and WebP. Non-image documents must be converted to an image first.
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const canvas = $("board");
+  const ctx = canvas.getContext("2d");
+
+  let photo = null;
+  let fileName = "my-artwork";
+  let cols = 45;
+  let rows = 45;
+  let palette = [];
+  let target = [];
+  let painted = [];
+  let selected = 0;
+  let showNumbers = true;
+
+  $("cameraBtn").onclick = () => $("camera").click();
+
+  $("upload").addEventListener("change", e => loadFile(e.target.files[0]));
+  $("camera").addEventListener("change", e => loadFile(e.target.files[0]));
+
+  function loadFile(file) {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image. Other file types need conversion first.");
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      photo = img;
+      fileName = (file.name || "my-artwork").replace(/\.[^.]+$/, "");
+      $("empty").style.display = "none";
+      canvas.style.display = "block";
+      $("make").disabled = false;
+      URL.revokeObjectURL(url);
+      makePuzzle();
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      alert("Unable to open that image. Try a PNG or JPEG.");
+    };
+
+    img.src = url;
+  }
+
+  function distance(a, b) {
+    return (a[0]-b[0])**2 +
+           (a[1]-b[1])**2 +
+           (a[2]-b[2])**2;
+  }
+
+  function getPixels(w, h) {
+    const temp = document.createElement("canvas");
+    temp.width = w;
+    temp.height = h;
+    const c = temp.getContext("2d", {willReadFrequently:true});
+
+    // Fit the image without stretching it.
+    c.fillStyle = "#ffffff";
+    c.fillRect(0, 0, w, h);
+
+    const scale = Math.min(w / photo.width, h / photo.height);
+    const dw = photo.width * scale;
+    const dh = photo.height * scale;
+
+    c.drawImage(photo, (w-dw)/2, (h-dh)/2, dw, dh);
+    return c.getImageData(0, 0, w, h).data;
+  }
+
+  function makePalette(data, count) {
+    const pixels = [];
+
+    for (let i = 0; i < data.length; i += 4) {
+      pixels.push([data[i], data[i+1], data[i+2]]);
+    }
+
+    // Start with colors spread throughout the photo.
+    const centers = [pixels[0].slice()];
+
+    while (centers.length < count) {
+      let best = pixels[0];
+      let bestDistance = -1;
+      const stride = Math.max(1, Math.floor(pixels.length / 3000));
+
+      for (let i = 0; i < pixels.length; i += stride) {
+        let nearest = Infinity;
+
+        for (const center of centers) {
+          nearest = Math.min(nearest, distance(pixels[i], center));
+        }
+
+        if (nearest > bestDistance) {
+          bestDistance = nearest;
+          best = pixels[i];
+        }
+      }
+
+      centers.push(best.slice());
+    }
+
+    // Refine colors with several k-means passes.
+    for (let pass = 0; pass < 7; pass++) {
+      const sums = centers.map(() => [0,0,0,0]);
+
+      for (const p of pixels) {
+        let best = 0;
+        let bestD = Infinity;
+
+        centers.forEach((c, i) => {
+          const d = distance(p, c);
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        });
+
+        const s = sums[best];
+        s[0] += p[0];
+        s[1] += p[1];
+        s[2] += p[2];
+        s[3]++;
+      }
+
+      for (let i = 0; i < centers.length; i++) {
+        const s = sums[i];
+        if (s[3]) {
+          centers[i] = [
+            Math.round(s[0]/s[3]),
+            Math.round(s[1]/s[3]),
+            Math.round(s[2]/s[3])
+          ];
+        }
+      }
+    }
+
+    // Merge duplicate colors.
+    return centers.filter((c, i, arr) =>
+      !arr.slice(0, i).some(other => distance(c, other) < 100)
+    );
+  }
+
+  function makePuzzle() {
+    if (!photo) return;
+
+    cols = Number($("detail").value);
+
+    // Keep a sensible number of cells for portrait and landscape photos.
+    const ratio = photo.height / photo.width;
+    rows = Math.max(1, Math.round(cols * ratio));
+    rows = Math.min(120, rows);
+
+    const data = getPixels(cols, rows);
+    palette = makePalette(data, Number($("colors").value)).map((rgb, i) => ({
+      rgb,
+      hex: "#" + rgb.map(v => v.toString(16).padStart(2,"0")).join(""),
+      number: i + 1,
+      count: 0
+    }));
+
+    target = new Array(cols * rows);
+    painted = new Array(cols * rows).fill(false);
+
+    for (let i = 0; i < target.length; i++) {
+      const rgb = [data[i*4], data[i*4+1], data[i*4+2]];
+      let best = 0;
+      let bestD = Infinity;
+
+      palette.forEach((color, j) => {
+        const d = distance(rgb, color.rgb);
+        if (d < bestD) {
+          bestD = d;
+          best = j;
+        }
+      });
+
+      target[i] = best;
+      palette[best].count++;
+    }
+
+    selected = palette.findIndex(c => c.count > 0);
+    if (selected < 0) selected = 0;
+
+    canvas.width = cols * 12;
+    canvas.height = rows * 12;
+
+    ["numbers","hint","reset","save"].forEach(id => {
+      $(id).disabled = false;
+    });
+
+    drawBoard();
+    updateStats();
+  }
+
+  function drawBoard() {
+    if (!target.length) return;
+
+    const cw = canvas.width / cols;
+    const ch = canvas.height / rows;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < target.length; i++) {
+      const x = (i % cols) * cw;
+      const y = Math.floor(i / cols) * ch;
+      const color = palette[target[i]];
+
+      ctx.fillStyle = painted[i] ? color.hex : "#ffffff";
+      ctx.fillRect(x, y, cw, ch);
+
+      ctx.strokeStyle = "#94a3b8";
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x, y, cw, ch);
+
+      if (showNumbers && !painted[i] && Math.min(cw,ch) >= 6) {
+        ctx.fillStyle = "#334155";
+        ctx.font = `bold ${Math.max(5,Math.min(cw,ch)*0.42)}px system-ui`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(color.number, x+cw/2, y+ch/2);
+      }
+    }
+  }
+
+  function drawPalette() {
+    const container = $("palette");
+    container.replaceChildren();
+
+    palette.forEach((color, i) => {
+      const done = painted.reduce(
+        (n, p, j) => n + (p && target[j] === i ? 1 : 0), 0
+      );
+
+      const button = document.createElement("button");
+      button.className = "swatch" +
+        (i === selected ? " active" : "") +
+        (color.count > 0 && done === color.count ? " done" : "");
+
+      const brightness =
+        color.rgb[0]*0.299 + color.rgb[1]*0.587 + color.rgb[2]*0.114;
+
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.style.background = color.hex;
+      chip.style.color = brightness < 145 ? "white" : "#172033";
+      chip.textContent = color.number;
+
+      const count = document.createElement("span");
+      count.textContent = `${done}/${color.count}`;
+
+      button.append(chip, count);
+      button.setAttribute("aria-label",
+        `Color ${color.number}, ${done} of ${color.count} squares painted`);
+
+      button.onclick = () => {
+        selected = i;
+        drawPalette();
+      };
+
+      container.append(button);
+    });
+
+    $("paletteHelp").textContent =
+      `Selected color: ${palette[selected]?.number ?? "—"}. ` +
+      "Tap squares with this number.";
+  }
+
+  function updateStats() {
+    const done = painted.filter(Boolean).length;
+    const total = target.length;
+    const pct = total ? Math.round(done / total * 100) : 0;
+
+    $("status").textContent =
+      `${done.toLocaleString()} of ${total.toLocaleString()} squares`;
+    $("percent").textContent = pct + "%";
+    $("progressFill").style.width = pct + "%";
+    $("finish").hidden = pct !== 100;
+
+    drawPalette();
+  }
+
+  canvas.addEventListener("pointerdown", e => {
+    if (!target.length) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * canvas.width / rect.width;
+    const y = (e.clientY - rect.top) * canvas.height / rect.height;
+
+    const cx = Math.floor(x / (canvas.width / cols));
+    const cy = Math.floor(y / (canvas.height / rows));
+
+    if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) return;
+
+    const i = cy * cols + cx;
+
+    if (target[i] === selected) {
+      painted[i] = true;
+      drawBoard();
+      updateStats();
+    } else if (!painted[i]) {
+      selected = target[i];
+      drawPalette();
+    }
+  });
+
+  $("make").onclick = makePuzzle;
+  $("detail").onchange = makePuzzle;
+  $("colors").onchange = makePuzzle;
+
+  $("numbers").onclick = () => {
+    showNumbers = !showNumbers;
+    $("numbers").textContent = showNumbers
+      ? "Hide numbers" : "Show numbers";
+    drawBoard();
+  };
+
+  $("hint").onclick = () => {
+    const i = target.findIndex(
+      (v, j) => v === selected && !painted[j]
+    );
+
+    if (i < 0) {
+      alert("No remaining squares for this color. Choose another color.");
+      return;
+    }
+
+    painted[i] = true;
+    drawBoard();
+    updateStats();
+  };
+
+  $("reset").onclick = () => {
+    if (confirm("Clear all coloring and restart this puzzle?")) {
+      painted.fill(false);
+      drawBoard();
+      updateStats();
+    }
+  };
+
+  $("save").onclick = () => {
+    const out = document.createElement("canvas");
+    out.width = canvas.width;
+    out.height = canvas.height;
+
+    const c = out.getContext("2d");
+    c.fillStyle = "white";
+    c.fillRect(0, 0, out.width, out.height);
+
+    for (let i = 0; i < target.length; i++) {
+      const x = (i % cols) * (out.width / cols);
+      const y = Math.floor(i / cols) * (out.height / rows);
+
+      c.fillStyle = painted[i] ? palette[target[i]].hex : "#ffffff";
+      c.fillRect(x, y, out.width / cols, out.height / rows);
+    }
+
+    const link = document.createElement("a");
+    link.download = fileName + "-colored.png";
+    link.href = out.toDataURL("image/png");
+    link.click();
+  };
+})();
+</script>
+</body>
+</html>
